@@ -1,61 +1,96 @@
-############################################
-Detailed Project Workflow (Streamlit Logic)
-############################################
-Audio Capture: The Streamlit app uses a component (like streamlit-webrtc or a file uploader) to receive audio.
-Chunking: The app splits the incoming stream into 3–5 second chunks (as per your PDF).
-Preprocessing: Each chunk is converted to a Mel-Spectrogram or MFCC (using librosa).
-Parallel ML Scoring:
-Synthetic Check: Wav2Vec2 predicts if the audio is AI-generated.
-Speaker Check: ECAPA-TDNN compares the chunk against a saved "Master" embedding of the real user.
-Behavioral Check: Script calculates "Prosody Anomalies" (Jitter/Shimmer).
-Risk Aggregation: An XGBoost model (loaded via pickle) takes these scores + manual metadata (e.g., Transaction Value) and calculates the Final Risk Score (0-100).
-Stateful UI Update: Streamlit uses st.empty() or st.metric() to update the dashboard live as each chunk is processed, showing the risk trend.
-##########################
-2. Updated File Structure
-##########################
+🛡️ Audio Fraud Sentinel
+AI-Powered Real-Time Voice Integrity & Fraud Detection Framework
+Audio Fraud Sentinel is a comprehensive defense system designed to detect AI-generated, cloned, replayed, or manipulated voices during live calls. By analyzing acoustic artifacts, speaker identity, and behavioral prosody in real-time, the system converts multiple signals into an actionable Impersonation Risk Score (0-100).
+🚀 Overview
+The system processes live audio in 3-5 second sliding windows, performing multi-layer analysis to ensure the voice on the other end is both human and who they claim to be.
+Key Features
+AI-Voice Detection: Identifies synthetic artifacts using Wav2Vec2 architecture.
+Speaker Verification: Compares live voice embeddings against registered "Master" samples using ECAPA-TDNN.
+Prosody Analysis: Detects anomalies in jitter, shimmer, and pitch variance common in synthetic speech.
+Contextual Fraud Engine: Fuses ML scores with metadata (transaction value, caller ID) via an XGBoost model.
+Explainable Alerts: Provides a detailed breakdown of why a call was flagged as high-risk.
+🏗️ System Architecture
+code
+Mermaid
+graph TD
+    A[Live Audio Input] --> B[Streamlit Dashboard]
+    B --> C[3-5s Audio Chunking]
+    C --> D[Preprocessing: VAD/Noise Removal]
+    D --> E{Multi-Layer Analysis}
+    E --> F[AI-Voice Detection - Wav2Vec2]
+    E --> G[Speaker Verification - ECAPA-TDNN]
+    E --> H[Prosody Analysis - Jitter/Shimmer]
+    F & G & H --> I[Contextual Fusion Engine]
+    I --> J[XGBoost Risk Scorer]
+    J --> K[Real-Time Dashboard Update]
+    K --> L{Risk Level}
+    L -->|0-30| M[LOW: Continue]
+    L -->|30-80| N[HIGH: Warning]
+    L -->|80-100| O[CRITICAL: Escalate]
+📂 Project Structure
 code
 Text
-/voca-shield-app
+/audio-fraud-sentinel
 │
 ├── .streamlit/
-│   └── config.toml          # UI Theme (colors, font)
+│   └── config.toml          # Custom UI theme and font settings
 │
-├── models/                  # Stored ML Weights
-│   ├── synthetic_model.pth  # Wav2Vec2/WavLM weights
-│   ├── speaker_enc.onnx     # ECAPA-TDNN model
-│   └── risk_engine.pkl      # Trained XGBoost model
-│
-├── core/                    # The ML "Engine"
+├── core/                    # The ML "Brain"
 │   ├── __init__.py
-│   ├── preprocessor.py      # Noise removal, VAD, chunking logic
-│   ├── detectors.py         # AI-voice & Speaker verification logic
-│   └── prosody.py           # Jitter, shimmer, and pitch analysis
+│   ├── preprocessor.py      # Audio normalization, VAD, and chunking logic
+│   ├── detectors.py         # AI-voice detection & Speaker verification classes
+│   └── prosody.py           # Signal processing for Jitter, Shimmer, and Pitch
 │
-├── data/                    # Local storage
-│   └── registry.json        # Stores "Real User" voice embeddings
+├── models/                  # Pre-trained Model Weights
+│   ├── synthetic_model.pth  # Wav2Vec2 weights for fake detection
+│   ├── speaker_enc.onnx     # ECAPA-TDNN for identity verification
+│   └── risk_engine.pkl      # Trained XGBoost model for risk fusion
 │
-├── utils/                   # Helper scripts
-│   └── risk_calculator.py   # Aggregates scores into 0-100
+├── data/                    # Storage
+│   └── registry.json        # Database of authorized user voice embeddings
 │
-├── app.py                   # MAIN STREAMLIT ENTRY POINT
-└── requirements.txt         # Dependencies (streamlit, torch, librosa, etc.)
-##########################
-3. Detailed File Contents
-##########################
-A. core/detectors.py (The Brain)
-Content: Contains classes for the two main models.
-Logic:
-SyntheticDetector: Loads Wav2Vec2 and has a function predict(audio_chunk) that returns a "Fake Probability."
-SpeakerVerifier: Uses speechbrain or ECAPA-TDNN to extract embeddings and perform a cosine_similarity check.
-B. core/prosody.py (Behavioral Analysis)
-Content: Pure signal processing using Librosa.
-Logic: Measures Jitter (variation in pitch) and Shimmer (variation in amplitude). Synthetic voices often have unnaturally low jitter/shimmer.
-C. utils/risk_calculator.py (The Engine)
-Content: This implements Section 8 of your PDF.
-Logic: It takes inputs: [AI_prob, Speaker_sim, Prosody_anomaly, Context_score] and runs them through the XGBoost model to return the final 0–100 score.
-D. app.py (The Streamlit UI)
-Top Sidebar: Upload a "Reference Voice" to register the user.
-Center Panel:
-st.audio_input: To record or stream live audio.
-st.line_chart: To show the Risk Trend (e.g., how the risk went from 12% to 91% over 25 seconds).
-st.status: To display the "Critical/High/Low" labels.
+├── utils/                   # Logic Helpers
+│   └── risk_calculator.py   # Aggregates ML scores into the final 0-100 score
+│
+├── app.py                   # Main Streamlit Entry Point (Frontend & Logic)
+├── requirements.txt         # Project Dependencies
+└── README.md                # Documentation
+🛠️ Detailed Component Breakdown
+1. ML Core (core/)
+detectors.py: Implements the SyntheticDetector (returning "Fake Probability") and the SpeakerVerifier (performing cosine similarity against historical voice prints).
+prosody.py: Uses Librosa to measure rhythmic and spectral characteristics. It flags voices that are "too perfect" or lack natural human micro-variations (Jitter/Shimmer).
+2. Risk Engine (utils/risk_calculator.py)
+This component implements the Fusion Model. It takes inputs from all detectors and applies a weighted XGBoost algorithm to generate a final risk percentage.
+Input Vector: [AI_Probability, Speaker_Similarity, Prosody_Anomaly, Contextual_Weight]
+Output: Final Risk Score (0-100).
+3. Streamlit Dashboard (app.py)
+The UI is divided into three functional zones:
+Enrollment: Upload or record a baseline sample to register a "Trusted Speaker."
+Live Monitoring: A real-time waveform and line chart showing the risk trend as the call progresses.
+Explainability Panel: A detailed breakdown of detected reasons (e.g., "High probability of synthetic artifacts detected").
+🚦 Getting Started
+Prerequisites
+Python 3.9+
+FFmpeg (for audio processing)
+Installation
+Clone the repository:
+code
+Bash
+git clone https://github.com/your-username/audio-fraud-sentinel.git
+cd audio-fraud-sentinel
+Install dependencies:
+code
+Bash
+pip install -r requirements.txt
+Run the application:
+code
+Bash
+streamlit run app.py
+📊 Risk Classification
+Score	Level	Action Required
+0–30	LOW	No action; normal verification.
+30–60	MEDIUM	Monitor closely; additional caution.
+60–80	HIGH	Secondary verification (MFA) recommended.
+80–100	CRITICAL	Immediate Escalation; Block Transaction.
+🛡️ Privacy & Ethics
+This framework is designed with Privacy-by-Design principles. It prefers edge-based processing and only stores voice "embeddings" (mathematical representations) rather than raw audio files to ensure user data protection.
